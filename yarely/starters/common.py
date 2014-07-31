@@ -41,7 +41,8 @@ module_name_fields = {
     "platform": sys.platform
 }
 
-verbose = ("YARELY_STARTER_VERBOSE" in os.environ)
+#verbose = ("YARELY_STARTER_VERBOSE" in os.environ)
+verbose=True
 
 class StarterError(Exception):
     pass

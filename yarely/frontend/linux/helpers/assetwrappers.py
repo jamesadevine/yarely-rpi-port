@@ -54,7 +54,7 @@ class ImageAsset(BaseAsset):
     def stop(self):
         if self.image:
             self.image.wait()
-        self.renderers.shutter.hard_to_black()
+        self.renderers.shutter.fade_to_black()
 
     def fade_colour(self):
         return 'black'
@@ -82,7 +82,7 @@ class BrowserAsset(BaseAsset):
     def stop(self):
         if self.browser:
             self.browser.wait()
-        self.renderers.shutter.hard_to_black()
+        self.renderers.shutter.fade_to_black()
 
     def fade_colour(self):
         return 'black'
@@ -110,7 +110,7 @@ class PlayerAsset(BaseAsset):
     def stop(self):
         if self.player:
             self.player.wait()
-        self.renderers.shutter.hard_to_black()
+        self.renderers.shutter.fade_to_black()
 
     def fade_colour(self):
         return 'black'
