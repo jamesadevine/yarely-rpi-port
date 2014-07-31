@@ -15,16 +15,7 @@ class Player(object):
 
     def start(self):
         # do not use '-s' flag (not needed, will give lots of unneeded output)
-
         self.player.send('p')
-
-        # wait for  Subtitle count
-        while True:
-            l = self.player.readline()
-            if not l:
-                break
-            if "Subtitle count" in l:
-                break
 
     def wait(self):
         self.player.expect(pexpect.EOF, timeout=None)
