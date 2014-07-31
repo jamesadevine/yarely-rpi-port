@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<content-set name="Yarely Sample Content" type="remote">
+  <requires-file>
+    <sources>
+      <uri refresh="1 week">http://yarely.lancs.ac.uk/sample_content/sample_content_set.xml</uri>
+    </sources>
+  </requires-file>
+</content-set>
