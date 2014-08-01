@@ -5,5 +5,9 @@ sudo apt-get install fim
 sudo apt-get install omxplayer
 sudo apt-get install python3-pip
 sudo pip-[PYTHON VERSION NUMBER] install pexpect
+sudo pip-3.2 install easyprocess pyvirtualdisplay
+sudo pip install Pillow - alternative PIL import compatible with Python3
+sudo pip install pyscreenshot
 
+xvfb-run --server-args "-screen 0, 1100x800x24" cutycapt --url=http://www.cnn.com --out=cnn.pdf
 Must run pkill -hup python on each new run...

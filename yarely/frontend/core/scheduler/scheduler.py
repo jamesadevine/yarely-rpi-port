@@ -33,6 +33,8 @@ from yarely.frontend.core.helpers.zmq import ZMQ_ADDRESS_INPROC, \
 from yarely.frontend.linux.content.rendering.viewer import Renderers
 from yarely.frontend.linux.helpers.assetwrappers import \
     ImageAsset, BrowserAsset, PlayerAsset
+from yarely.frontend.linux.helpers.cachemanager import \
+    cache_manager
 
 # For working out what we're running on
 from sys import exit, platform, stdout
@@ -523,7 +525,7 @@ class Scheduler(threading.Thread, ZMQRPC):
                 content_item = self._current_content_items[cds_index][0]
 
                 # Work out how to play this content item
-                print('CONTENT ITEM: '+content_item.get_content_type())
+                #print('CONTENT ITEM: '+content_item.get_content_type())
                 asset = self.determine_asset(content_item)
 
                 first_item_duration = self.get_duration_for(content_item)
@@ -574,7 +576,7 @@ class Scheduler(threading.Thread, ZMQRPC):
 
                         # Lookup content URI / file path
                         # (do any precaching we can)
-                        content_src_uri = self.prefetch_content_item(asset)
+                        content_src_uri = self.cache_manager.prefetch_content_item(asset)
                         if content_src_uri is None:
                             # Can't fetch this now, move it to the end and try
                             # the next content item
@@ -699,6 +701,7 @@ class Scheduler(threading.Thread, ZMQRPC):
 
     def set_cache_path(self, cache_path):
         self.cache_path = cache_path
+        self.cache_manager=cache_manager(self.cache_path)
 
     def update_list(self, etree_new):
         """ A simple comparator based on MD5."""

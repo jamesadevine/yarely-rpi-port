@@ -88,7 +88,38 @@ class BrowserAsset(BaseAsset):
         return 'black'
 
     def should_precache(self):
+        return True
+
+'''
+alternative browser class for loading live links - not recommended it's very bad (no javascript)
+class BrowserAsset(BaseAsset):
+    def __init__(self, *args, **kwargs):
+        super(BrowserAsset, self).__init__(*args, **kwargs)
+        self.browser = None
+
+    def prepare(self):
+        self.browser = Browser(self.uri,self.renderers.resolution)
+
+    def play(self):
+        # now that we just show a black background,
+        # it makes no sense to waste time by fading in
+        # shutter.fade_in()
+        self.renderers.shutter.hard_in()
+
+        if self.browser:
+            self.browser.start()
+
+    def stop(self):
+        if self.browser:
+            self.browser.wait()
+        self.renderers.shutter.fade_to_black()
+
+    def fade_colour(self):
+        return 'black'
+
+    def should_precache(self):
         return False
+'''
 
 class PlayerAsset(BaseAsset):
     def __init__(self, *args, **kwargs):
