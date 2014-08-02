@@ -1,5 +1,6 @@
 import logging
 import pexpect
+from subprocess import Popen
 from os import path, getenv, remove
 
 image_bin = '/usr/bin/fim'
@@ -14,12 +15,12 @@ class Image(object):
         self.uri = uri
 
     def start(self):
-        self.image = pexpect.spawn('%s %s' % (image_bin, self.uri))
+        self.image = Popen([image_bin, self.uri])
         log.info('Fim started.')
 
     def wait(self):
         log.debug('Image waiting seen eof on process')
-        self.image.terminate(force=True)
+        self.image.terminate()
         log.debug('Image waiting cleanup')
         # Clean up after omxplayer
         if path.isfile(image_logfile):

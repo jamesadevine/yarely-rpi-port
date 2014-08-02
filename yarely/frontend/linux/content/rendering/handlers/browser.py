@@ -2,12 +2,38 @@ import logging
 from subprocess import Popen
 from os import path, getenv, remove
 
-netsurf_bin = '/usr/bin/netsurf-fb'
 
-browser_logfile = path.join(getenv('HOME'), 'netsurf.log')
+image_bin = '/usr/bin/fim'
+
+#netsurf_bin = '/usr/bin/netsurf-fb'
+
+browser_logfile = path.join(getenv('HOME'), 'browser.log')
 
 log = logging.getLogger(__name__)
 
+class Browser(object):
+    def __init__(self, uri):
+        # Set URL to render
+        self.uri = uri
+
+    def start(self):
+        self.image = Popen([image_bin, self.uri])
+        log.info('Fim started.')
+
+    def wait(self):
+        log.debug('Image waiting seen eof on process')
+        self.image.terminate()
+        log.debug('Image waiting cleanup')
+        # Clean up after omxplayer
+        if path.isfile(browser_logfile):
+            remove(browser_logfile)
+        log.debug('Image done')
+
+
+'''
+old browser that displays a webpage without javascript using netsurf...
+
+not very useful
 class Browser(object):
     def __init__(self, uri,resolution):
         # Set URL to render
@@ -34,3 +60,5 @@ class Browser(object):
         if path.isfile(browser_logfile):
             remove(browser_logfile)
         log.debug('netsurf done')
+
+'''

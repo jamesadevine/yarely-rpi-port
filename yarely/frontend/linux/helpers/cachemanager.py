@@ -7,9 +7,12 @@ from urllib.error import URLError
 from threading import Lock
 from urllib.request import urlopen
 import re
+import pexpect
 import os
 from subprocess import check_output
 
+xvfb_run_bin='/usr/bin/xvfb-run'
+os.environ['DISPLAY']=':1'
 
 class cache_manager(object):
     def __init__(self,cache_path):
@@ -34,6 +37,8 @@ class cache_manager(object):
 
         #get just the resolution string (width/height in pixels)
         self.width_height=resolution.strip('+0+0')
+        self.width=self.width_height.split('x')[0]
+        self.height=self.width_height.split('x')[1]
 
     def prefetch_content_item(self, asset):
         content_file = asset.asset.get_files()[0]
@@ -51,9 +56,14 @@ class cache_manager(object):
             if not asset.should_precache():
                 # Don't precache, use the URI as it is
                 return content_src_uri
-            file_uri=content_src_uri.split('.')
-            file_uri=str(file_uri[-2]+'.'+file_uri[-1])
-            file_uri=file_uri.replace('/', '')
+            if isinstance(asset,BrowserAsset):
+                file_uri=content_src_uri.split('.')
+                file_uri=str(file_uri[-2]+file_uri[-1]+'.url.png')
+                file_uri=file_uri.replace('/', '')
+            else:
+                file_uri=content_src_uri.split('.')
+                file_uri=str(file_uri[-2]+'.'+file_uri[-1])
+                file_uri=file_uri.replace('/', '')
             # Precache content
             # Work out path to the content in the cache
             cache_path = os.path.join(
@@ -72,9 +82,7 @@ class cache_manager(object):
                     print('downloading browser asset')
                     self.add_to_active_downloads(content_src_uri)
                     #if it's a page we use popen to save a screencap of that image
-                    process=Process(target=self.download_page,args=(content_src_uri,cache_path,self.active_downloads_lock,))
-                    process.daemon=True
-                    process.start()
+                    self.download_page(content_src_uri,cache_path,self.active_downloads_lock,)
                 elif not self.is_in_active_downloads(content_src_uri) and self.running_process.value<5:
                     self.increment_running_process()
                     print('downloading image or video asset')
@@ -145,7 +153,7 @@ class cache_manager(object):
         #store image of page in separate directory so that the scheduler doesn't try and read a bad resource...
         temp_path='/tmp/downloading'+download_path
         print('downloading to '+temp_path)
-        process=Popen(['xvfb-run', '--server-args', '"-screen 0, '+str(self.width_height)+'x24"', 'cutycapt', '--url='+uri,'--out='+temp_path])
+        process=Popen(['xvfb-run','-e','/dev/stdout','-s -screen 0, '+str(self.width_height)+'x24', 'cutycapt', '--url='+uri,'--min-width='+str(self.height), '--min-height='+str(self.height),'--out='+temp_path,'--delay=7000'])
         process.wait()
         print('Download complete - moving to actual cache: '+download_path)
         os.rename(temp_path,download_path)

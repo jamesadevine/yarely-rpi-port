@@ -10,6 +10,7 @@ import yarely.frontend.linux.content.rendering.html_templates as html_templates
 
 class BaseAsset(object):
     def __init__(self, asset, renderers):
+        print(chr(27) + "[2J")
         self.asset = asset
         self.renderers = renderers
 
@@ -46,15 +47,16 @@ class ImageAsset(BaseAsset):
         # now that we just show a black background,
         # it makes no sense to waste time by fading in
         # shutter.fade_in()
-        self.renderers.shutter.hard_in()
+        self.renderers.shutter.fade_in()
 
         if self.image:
             self.image.start()
 
     def stop(self):
+        self.renderers.shutter.fade_to_black()
         if self.image:
             self.image.wait()
-        self.renderers.shutter.fade_to_black()
+
 
     def fade_colour(self):
         return 'black'
@@ -68,21 +70,21 @@ class BrowserAsset(BaseAsset):
         self.browser = None
 
     def prepare(self):
-        self.browser = Browser(self.uri,self.renderers.resolution)
+        self.browser = Browser(self.uri)
 
     def play(self):
         # now that we just show a black background,
         # it makes no sense to waste time by fading in
         # shutter.fade_in()
-        self.renderers.shutter.hard_in()
+        self.renderers.shutter.fade_in()
 
         if self.browser:
             self.browser.start()
 
     def stop(self):
+        self.renderers.shutter.fade_to_black()
         if self.browser:
             self.browser.wait()
-        self.renderers.shutter.fade_to_black()
 
     def fade_colour(self):
         return 'black'
@@ -132,9 +134,7 @@ class PlayerAsset(BaseAsset):
     def play(self):
         # now that we just show a black background,
         # it makes no sense to waste time by fading in
-        # shutter.fade_in()
-        self.renderers.shutter.hard_in()
-
+        #self.shutter.fade_in()
         if self.player:
             self.player.start()
 
