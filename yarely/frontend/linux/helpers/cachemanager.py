@@ -8,11 +8,15 @@ from threading import Lock
 from urllib.request import urlopen
 import re
 import pexpect
+import heapq
+from datetime import datetime
 import os
+import time
 from subprocess import check_output
 
 xvfb_run_bin='/usr/bin/xvfb-run'
-os.environ['DISPLAY']=':1'
+URL_REFRESH_TIME=1800 #30 minutes
+FILE_DELETION_TIME=1800 #30 minutes
 
 class cache_manager(object):
     def __init__(self,cache_path):
@@ -39,6 +43,15 @@ class cache_manager(object):
         self.width_height=resolution.strip('+0+0')
         self.width=self.width_height.split('x')[0]
         self.height=self.width_height.split('x')[1]
+
+        #start url removal and file deletion processes.
+        url_removal_process=Process(target=self.remove_old_items())
+        url_removal_process.daemon=True
+        url_removal_process.start()
+
+        file_deletion_process=Process(target=self.remove_old_items())
+        file_deletion_process.daemon=True
+        file_deletion_process.start()
 
     def prefetch_content_item(self, asset):
         content_file = asset.asset.get_files()[0]
@@ -163,3 +176,46 @@ class cache_manager(object):
         print('decrementing from process')
         self.decrement_running_process()
 
+    #this function runs in the background and removes 20 items whenever it sees that the diskspace usage >20%
+    def remove_old_items(self):
+        while True:
+            statvfs = os.statvfs(self.cache_path)
+            disk_size=statvfs.f_frsize * statvfs.f_blocks
+            free_space=statvfs.f_frsize * statvfs.f_bavail
+            percentage_used=free_space/disk_size*100
+
+            if percentage_used>80:
+                old_files=self.oldest_files_in_tree(count=20)
+                while old_files:
+                    os.remove(old_files.pop())
+            time.sleep(FILE_DELETION_TIME)
+
+    def oldest_files_in_tree(self, count=1, extension=('.jpg','.png','.jpeg','.url.png')):
+        return heapq.nsmallest(count,
+            (os.path.join(dirname, filename)
+            for dirname, dirnames, filenames in os.walk(self.cache_path)
+            for filename in filenames
+            if filename.endswith(extension)),
+            key=lambda fn: os.stat(fn).st_mtime)
+
+    def check_time(self,filename,time):
+        last_modified=datetime.fromtimestamp(os.stat(filename).st_mtime)
+        current_time=datetime.now()
+        if (current_time-last_modified).seconds>time:
+            return True
+        return False
+
+    def files_with_last_modified(self,time=URL_REFRESH_TIME, count=1, extension=('.jpg','.png','.jpeg','.url.png')):
+        return heapq.nsmallest(count,
+            (os.path.join(dirname, filename)
+            for dirname, dirnames, filenames in os.walk(self.cache_path)
+            for filename in filenames
+            if filename.endswith(extension) and self.check_time(os.path.join(dirname, filename),URL_REFRESH_TIME)),
+            key=lambda fn: os.stat(fn).st_mtime)
+
+    def remove_urls(self):
+        while True:
+            old_files=self.files_with_last_modified(count=100)
+            while old_files:
+                os.remove(old_files.pop())
+            time.sleep(URL_REFRESH_TIME)
