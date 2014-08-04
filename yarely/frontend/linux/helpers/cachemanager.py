@@ -43,18 +43,17 @@ class cache_manager(object):
         ).group(1)
 
         #get just the resolution string (width/height in pixels)
-        self.width_height=resolution.strip('+0+0')
-        self.width=self.width_height.split('x')[0]
-        self.height=self.width_height.split('x')[1]
+        self.width=resolution.split('x')[0]
+        self.height=resolution.split('x')[1]
 
         log.info('Initialising url removal')
         #start url removal and file deletion processes.
-        url_removal_process=Process(target=self.remove_old_items())
+        url_removal_process=Process(target=self.remove_old_items)
         url_removal_process.daemon=True
         url_removal_process.start()
 
         log.info('Initialising old file deletion')
-        file_deletion_process=Process(target=self.remove_old_items())
+        file_deletion_process=Process(target=self.remove_old_items)
         file_deletion_process.daemon=True
         file_deletion_process.start()
 
@@ -62,7 +61,7 @@ class cache_manager(object):
         content_file = asset.asset.get_files()[0]
         sources = content_file.get_sources()
         if not len(sources):
-            print(
+            log.info(
                 'Could not get source URI at index 0'
             )
             return None
@@ -88,8 +87,8 @@ class cache_manager(object):
                 self.cache_path,
                 file_uri
             )
-            #print ('FILE URI:'+file_uri)
-            #print ('CACHE PATH:'+cache_path)
+            #log.info ('FILE URI:'+file_uri)
+            #log.info ('CACHE PATH:'+cache_path)
             if os.path.exists(cache_path):
                 # Content already cached
                 return cache_path
@@ -114,16 +113,16 @@ class cache_manager(object):
 
     def decrement_running_process(self):
         self.running_process_lock.acquire()
-        print(str(self.running_process.value))
+        log.info(str(self.running_process.value))
         self.running_process.value-=1
-        print(str(self.running_process.value))
+        log.info(str(self.running_process.value))
         self.running_process_lock.release()
 
     def increment_running_process(self):
         self.running_process_lock.acquire()
-        print(str(self.running_process.value))
+        log.info(str(self.running_process.value))
         self.running_process.value+=1
-        print(str(self.running_process.value))
+        log.info(str(self.running_process.value))
         self.running_process_lock.release()
 
     def add_to_active_downloads(self,uri):
@@ -163,7 +162,7 @@ class cache_manager(object):
         #store image of page in separate directory so that the scheduler doesn't try and read a bad resource...
         temp_path='/tmp/downloading'+download_path
         log.info('downloading to '+temp_path)
-        process=Popen(['xvfb-run','-e','/dev/stdout','-s -screen 0, '+str(self.width_height)+'x24', 'cutycapt', '--url='+uri,'--min-width='+str(self.height), '--min-height='+str(self.height),'--out='+temp_path,'--delay=7000'])
+        process=Popen(['xvfb-run','-s -screen 0, '+str(self.width)+'x'+str(self.height)+'x24', 'cutycapt', '--url='+uri,'--min-width='+str(self.width), '--min-height='+str(self.height),'--out='+temp_path,'--delay=10000'])
         process.wait()
         log.info('Download complete - moving to actual cache: '+download_path)
         os.rename(temp_path,download_path)
@@ -202,7 +201,7 @@ class cache_manager(object):
             return True
         return False
 
-    def files_with_last_modified(self,time=URL_REFRESH_TIME, count=1, extension=('.jpg','.png','.jpeg','.url.png')):
+    def files_with_last_modified(self,time=URL_REFRESH_TIME, count=1, extension=('.jpg','.JPG','.png','.jpeg','.url.png')):
         return heapq.nsmallest(count,
             (os.path.join(dirname, filename)
             for dirname, dirnames, filenames in os.walk(self.cache_path)

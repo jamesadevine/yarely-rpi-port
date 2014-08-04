@@ -10,12 +10,13 @@ log = logging.getLogger(__name__)
 
 class Player(object):
     def __init__(self, uri):
-        self.player = pexpect.spawn('%s %s' % (player_bin, uri))
+
         self.uri=uri
 
     def start(self):
         # do not use '-s' flag (not needed, will give lots of unneeded output)
-        self.player.send('p')
+        self.player = pexpect.spawn('%s %s' % (player_bin, self.uri))
+        #self.player.send('p')
 
     def wait(self):
         self.player.expect(pexpect.EOF, timeout=None)
@@ -25,4 +26,3 @@ class Player(object):
             remove(omxplayer_old_logfile)
         elif path.isfile(omxplayer_logfile):
             remove(omxplayer_logfile)
-        print('Player DONE')
