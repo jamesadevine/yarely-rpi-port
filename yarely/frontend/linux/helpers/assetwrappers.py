@@ -10,7 +10,6 @@ import yarely.frontend.linux.content.rendering.html_templates as html_templates
 
 class BaseAsset(object):
     def __init__(self, asset, renderers):
-        print(chr(27) + "[2J")
         self.asset = asset
         self.renderers = renderers
 

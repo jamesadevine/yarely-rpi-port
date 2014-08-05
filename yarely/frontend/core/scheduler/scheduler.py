@@ -1019,10 +1019,8 @@ class SchedulerReceiver(ApplicationWithConfig, ZMQRPC):
 
         # Make the set of connection requests available in the other
         # object/thread
-
-
-
         self.scheduler.set_web_requests(self.web_requests)
+
         return self._encapsulate_reply(self._generate_pong())
 
 
