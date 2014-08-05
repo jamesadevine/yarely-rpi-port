@@ -60,7 +60,7 @@ class Handler(ApplicationWithBasicLogging, ZMQRPC):
     def _add_arguments(self, arg_parser):
         """Add arguments to the argument parser."""
         super()._add_arguments(arg_parser)
-        arg_parser.add_argument("zmq", help="A ZMQ conenction string")
+        arg_parser.add_argument("zmq", help="A ZMQ connection string")
         tkn_help = "A one-off security token for registration with the manager"
         arg_parser.add_argument("token", help=tkn_help)
 

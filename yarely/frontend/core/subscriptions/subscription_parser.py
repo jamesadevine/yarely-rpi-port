@@ -65,7 +65,6 @@ class SubscriptionElementFile:
     def __init__(self, etree_elem):
         super().__init__()
         self.etree = ElementTree.ElementTree(etree_elem)
-
         # Handle sources
         self._sources = []
         sources_elem = etree_elem.find('sources')
@@ -224,6 +223,7 @@ class SubscriptionElement:
     def __init__(self, etree_elem, parent=None):
         super().__init__()
         self.etree = ElementTree.ElementTree(etree_elem)
+        #print('SUBSCRIPTIONELEMENT: '+str(ElementTree.tostring(etree_elem)))
         self._parent = parent
         root = self.etree.getroot()
 
@@ -231,7 +231,7 @@ class SubscriptionElement:
         # self._type = root.attrib.get('type', 'remote')
         # AttributeError: 'NoneType' object has no attribute 'attrib'
         if root is None:
-            etree_xml_str = ElementTree.tostring(self.etree).decode()
+            etree_xml_str = ElementTree.ElementTree.tostring(self.etree).decode()
             msg = 'No root XML found, etree is:\n"{etree}"'
             msg = msg.format(etree=etree_xml_str)
             raise XMLSubscriptionParserError(msg)

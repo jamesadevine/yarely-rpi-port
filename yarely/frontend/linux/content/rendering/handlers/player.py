@@ -10,7 +10,6 @@ log = logging.getLogger(__name__)
 
 class Player(object):
     def __init__(self, uri):
-
         self.uri=uri
 
     def start(self):

@@ -51,7 +51,7 @@ class SocketHandler(Handler):
         port = int(self.params['port'])
         log.info('Port number is {port}'.format(port=port))
         try:
-            self.sock_addr = (self.params['host'], port)
+            self.sock_addr = ('127.0.0.1', port)
         except KeyError:
             addr = socket.gethostbyname(socket.gethostname())
             log.info(
@@ -114,13 +114,14 @@ class SocketHandler(Handler):
                 pass        # No data but connected, continue (for now -
                             # maybe we should drop the connection?)
 
-        log.info('Received data from {addr}: {data}'.format(
+        print('Received data from {addr}: {data}'.format(
             addr='socket' if address is None else address,
             data=all_data
         ))
         etree = self._encapsulate_request(
             self._generate_sensor_update(all_data)
         )
+        print('etree: '+str(etree.items()))
         self.zmq_request_queue.put_nowait(etree)
         connection.close()
         self._socket_reader_threads.pop(id(connection))

@@ -57,11 +57,55 @@ class cache_manager(object):
         file_deletion_process.daemon=True
         file_deletion_process.start()
 
+    def fetch_interrupt_item(self,asset):
+        content_src_uri=asset.uri
+        if not asset.should_precache():
+            # Don't precache, use the URI as it is
+            return content_src_uri
+        if isinstance(asset,BrowserAsset):
+            file_uri=content_src_uri.split('.')
+            file_uri=str(file_uri[-3]+file_uri[-2]+file_uri[-1]+'.url.png')
+            file_uri=file_uri.replace('/', '')
+        else:
+            file_uri=content_src_uri.split('.')
+            file_uri=str(file_uri[-3]+file_uri[-2]+'.'+file_uri[-1])
+            file_uri=file_uri.replace('/', '')
+        # Precache content
+        # Work out path to the content in the cache
+        cache_path = os.path.join(
+            self.cache_path,
+            file_uri
+        )
+        #log.info ('FILE URI:'+file_uri)
+        #log.info ('CACHE PATH:'+cache_path)
+        if os.path.exists(cache_path):
+            # Content already cached
+            return cache_path
+        else:
+            #download file in background without blocking main thread
+            if isinstance(asset,BrowserAsset) and not self.is_in_active_downloads(content_src_uri) and self.running_process.value<5:
+                self.increment_running_process()
+                log.info('downloading browser asset')
+                self.add_to_active_downloads(content_src_uri)
+                #if it's a page we use popen to save a screencap of that image
+                self.download_page(content_src_uri,cache_path,self.active_downloads_lock,)
+            elif not self.is_in_active_downloads(content_src_uri) and self.running_process.value<5:
+                self.increment_running_process()
+                log.info('downloading image or video asset')
+                self.add_to_active_downloads(content_src_uri)
+
+                #else use a traditional write buffer to download the resource.
+                process=Process(target=self.download_resource,args=(content_src_uri,cache_path,self.active_downloads_lock,))
+                process.daemon=True
+                process.start()
+            else:
+                return None
+
     def prefetch_content_item(self, asset):
         content_file = asset.asset.get_files()[0]
         sources = content_file.get_sources()
         if not len(sources):
-            log.info(
+            print(
                 'Could not get source URI at index 0'
             )
             return None
@@ -75,11 +119,11 @@ class cache_manager(object):
                 return content_src_uri
             if isinstance(asset,BrowserAsset):
                 file_uri=content_src_uri.split('.')
-                file_uri=str(file_uri[-2]+file_uri[-1]+'.url.png')
+                file_uri=str(file_uri[-3]+file_uri[-2]+file_uri[-1]+'.url.png')
                 file_uri=file_uri.replace('/', '')
             else:
                 file_uri=content_src_uri.split('.')
-                file_uri=str(file_uri[-2]+'.'+file_uri[-1])
+                file_uri=str(file_uri[-3]+file_uri[-2]+'.'+file_uri[-1])
                 file_uri=file_uri.replace('/', '')
             # Precache content
             # Work out path to the content in the cache
@@ -147,7 +191,10 @@ class cache_manager(object):
             filehandle = urlopen(uri)
             open(temp_path, 'wb').write(filehandle.read())
             log.info('Download complete - moving to actual cache: '+download_path)
-            os.rename(temp_path,download_path)
+            try:
+                os.rename(temp_path,download_path)
+            except:
+                print('rename failed - try again later')
             active_downloads_lock.acquire()
             del self.active_downloads[uri]
             active_downloads_lock.release()
@@ -162,10 +209,14 @@ class cache_manager(object):
         #store image of page in separate directory so that the scheduler doesn't try and read a bad resource...
         temp_path='/tmp/downloading'+download_path
         log.info('downloading to '+temp_path)
-        process=Popen(['xvfb-run','-s -screen 0, '+str(self.width)+'x'+str(self.height)+'x24', 'cutycapt', '--url='+uri,'--min-width='+str(self.width), '--min-height='+str(self.height),'--out='+temp_path,'--delay=10000'])
+        process=Popen(['xvfb-run','-e','/dev/stdout','-s -screen 0, '+str(self.width)+'x'+str(self.height)+'x24', 'cutycapt', '--url='+uri,'--delay=10000','--min-width='+str(self.width), '--min-height='+str(self.height),'--out='+temp_path])
         process.wait()
         log.info('Download complete - moving to actual cache: '+download_path)
-        os.rename(temp_path,download_path)
+        try:
+            os.rename(temp_path,download_path)
+        except:
+            print('rename failed - try again later')
+
         active_downloads_lock.acquire()
         del self.active_downloads[uri]
         active_downloads_lock.release()

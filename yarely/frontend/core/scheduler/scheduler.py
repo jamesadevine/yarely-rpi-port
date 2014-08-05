@@ -9,7 +9,7 @@ from subprocess import Popen
 from threading import Lock
 from urllib.error import URLError
 from urllib.request import urlopen
-from xml.etree import ElementTree
+import xml.etree.ElementTree as ET
 
 # Third party imports
 import zmq
@@ -20,7 +20,7 @@ from yarely.frontend.core.helpers.base_classes.constraint import \
     PriorityConstraint, PriorityConstraintCondition, \
     PlaybackConstraint, PreferredDurationConstraint
 from yarely.frontend.core.subscriptions.subscription_parser import \
-    XMLSubscriptionParser, XMLSubscriptionParserError, ContentItem
+    XMLSubscriptionParser, XMLSubscriptionParserError, ContentItem, ContentDescriptorSet
 from yarely.frontend.core.helpers.base_classes import ApplicationWithConfig
 from yarely.frontend.core.helpers.base_classes.zmq_rpc import ZMQRPC
 from yarely.frontend.core.helpers.execution import application_loop
@@ -35,6 +35,10 @@ from yarely.frontend.linux.helpers.assetwrappers import \
     ImageAsset, BrowserAsset, PlayerAsset
 from yarely.frontend.linux.helpers.cachemanager import \
     cache_manager
+
+from yarely.frontend.linux.content.rendering.handlers.browser import Browser
+from yarely.frontend.linux.content.rendering.handlers.player import Player
+from yarely.frontend.linux.content.rendering.handlers.image import Image
 
 # For working out what we're running on
 from sys import exit, platform, stdout
@@ -171,6 +175,7 @@ class Scheduler(threading.Thread, ZMQRPC):
     def __init__(self, etree=None):
         threading.Thread.__init__(self)
         self.daemon = True
+        self.render_process=None
         self.scheduler_event_thread = threading.Event()
         self.refresh_schedules_softinterrupt = threading.Event()
         self.ignore_scheduler = 0
@@ -202,13 +207,13 @@ class Scheduler(threading.Thread, ZMQRPC):
         self.display_client = DisplayClient()
 
     def _generate_params(self, params):
-        params_root = ElementTree.Element(tag='params')
-        param = ElementTree.Element(
+        params_root = ET.Element(tag='params')
+        param = ET.Element(
             tag='param', attrib={'name': 'token', 'value': 'UNUSED'}
         )
         params_root.append(param)
         for key, value in params.items():
-            param = ElementTree.Element(
+            param = ET.Element(
                 tag='param', attrib={'name': key, 'value': value}
             )
             params_root.append(param)
@@ -259,14 +264,77 @@ class Scheduler(threading.Thread, ZMQRPC):
            list to renderer.
         """
         if self.etree is None or len(self.web_requests):
+
             log.debug('No etree or web requests')
             ignore_until = self.ignore_scheduler + SENSOR_LIFETIME
             if ignore_until > time.time() and len(self.web_requests):
                 self.renderer_override()
         else:
             log.debug('Got etree')
-            # An etree already received can process list to scheduler
             self.process_to_renderer()
+
+    def renderer_override(self):
+        if not self.web_requests_updated:
+            return
+        self.web_requests_updated = False
+
+        _web_items=list(self.web_requests[key][0] for key in self.web_requests)
+
+        for content in _web_items:
+            asset=self.determine_asset(content)
+            self.now_playing=asset
+            content_src_uri = self.cache_manager.prefetch_content_item(asset)
+            if content_src_uri is None:
+                # Can't fetch this now, move it to the end and try
+                # the next content item
+                _web_items.append(_web_items.pop(0))
+
+                continue
+
+            while len(self.executing_renderers):
+                    renderer = self.executing_renderers.pop()
+                    log.debug('terminating ' + repr(renderer.pid))
+                    renderer.terminate()
+
+            asset.set_uri(content_src_uri)
+            # Start buffering content
+            asset.prepare()
+
+            first_item_duration = self.get_duration_for(content)
+
+
+            # Sleep for the content duration
+            if first_item_duration is not None:
+                # Normal content with a duration
+                now = time.time()
+                end_time = now + first_item_duration
+
+                # Allow display to stay for 2x duration of content
+                self.display_client.msg_queue.put_nowait(
+                    DISPLAY_ON_XML.format(
+                        timestamp=end_time
+                    )
+                )
+
+                asset.play()
+
+                while (
+                    now < end_time and (
+                        self.ignore_scheduler + SENSOR_LIFETIME
+                    ) <= now and
+                    not self.scheduler_event_thread.is_set()
+                ):
+                    # Sleep for up to 1 sec
+                    try:
+                        time.sleep(min(1, end_time - time.time()))
+                    except IOError:
+                        pass
+                    now = time.time()
+
+                    log.debug(
+                        "Time remaining {}".format(end_time - now)
+                    )
+
 
     def get_ratio_for(self, playlist):
         """Lookup the playback constraint (ratio) for this content item"""
@@ -340,45 +408,7 @@ class Scheduler(threading.Thread, ZMQRPC):
             'text': BrowserAsset(content_item, self.renderers),
             'video': PlayerAsset(content_item, self.renderers)
         }.get(simple_content_type, None)
-        
-    def prefetch_content_item(self, asset):
-        content_file = asset.asset.get_files()[0]
-        sources = content_file.get_sources()
-        if not len(sources):
-            log.error(
-                'Could not get source URI at index 0'
-            )
-            return None
 
-        for src in sources:
-            content_src_uri = src.get_uri()
-
-            # Look to see if this file should be precached
-            if not asset.should_precache():
-                # Don't precache, use the URI as it is
-                return content_src_uri
-
-            # Precache content
-            # Work out path to the content in the cache
-            cache_path = os.path.join(
-                self.cache_path,
-                content_src_uri.split('/')[-1]
-            )
-            if os.path.exists(cache_path):
-                # Content already cached
-                return cache_path
-
-            try:
-                filehandle = urlopen(content_src_uri)
-                open(cache_path, 'wb').write(filehandle.read())
-                # We have a path
-                return cache_path
-            except (URLError, IOError) as e:
-                log.warning('Failed to prefetch from URL: {uri}\n{e}'.format(
-                    uri=content_src_uri, e=str(e)
-                ))
-
-        return None
 
     def process_to_renderer(self):
         """ Content_item passed to renderer if time contraint is valid. """
@@ -837,16 +867,12 @@ class Scheduler(threading.Thread, ZMQRPC):
 
     def set_web_requests(self, web_requests):
         if sorted(self.web_requests) != sorted(web_requests):
-            log.debug('web_requests has changed')
-
-            # Terminate old renderers
-            while len(self.executing_renderers):
-                renderer = self.executing_renderers.pop()
-                log.debug('terminating ' + repr(renderer.pid))
-                renderer.terminate()
-
+            print('web_requests has changed')
             self.web_requests_updated = True
         self.web_requests = web_requests.copy()
+        self.renderer_override()
+
+
 
 class SchedulerReceiver(ApplicationWithConfig, ZMQRPC):
     """
@@ -924,14 +950,14 @@ class SchedulerReceiver(ApplicationWithConfig, ZMQRPC):
                 # B. FIXME THIS SHOULD USE THE _handle_zmq_msg METHOD
                 elif sock is zmq_subsmanager_reply_socket:
                     req_str = sock.recv_unicode()
-                    req_elem = ElementTree.XML(req_str)
+                    req_elem = ET.XML(req_str)
                     subs_update = req_elem.find('subscription-update')
                     if subs_update is not None:
-                        new_content_set = ElementTree.tostring(
+                        new_content_set = ET.tostring(
                             subs_update
                         )
                     sock.send_unicode(
-                        ElementTree.tostring(
+                        ET.tostring(
                             self._encapsulate_reply(self._generate_pong()),
                             encoding="unicode"
                         )
@@ -945,7 +971,7 @@ class SchedulerReceiver(ApplicationWithConfig, ZMQRPC):
                     if reply is None:
                         log.warning(WARN_NO_REPLY)
                         reply = self._encapsulate_reply(self._generate_error())
-                    sock.send(ElementTree.tostring(reply))
+                    sock.send(ET.tostring(reply))
             return term
 
         while True:
@@ -968,22 +994,21 @@ class SchedulerReceiver(ApplicationWithConfig, ZMQRPC):
 
         # Pull out the server, port, password from the received request
         if None not in (msg_root, msg_elem):
-            attrib = msg_elem.find('web_request').attrib
-            url = attrib['url']
-            self.web_requests[url] = (request_time, url)
-
+            parser=ContentItem(msg_elem.find('content-item'))
+            #don't override renderer until content is ready...
+            while(self.scheduler.cache_manager.prefetch_content_item(self.scheduler.determine_asset(parser)) is None):
+                time.sleep(2)
+            request_time = time.time()
+            self.web_requests[parser.get_files()[0]] = (parser,request_time)
+        copy=self.web_requests.copy()
         # Remove expired requests
-        for key, value in self.web_requests.copy().items():
-            if value[0] + SENSOR_LIFETIME < request_time:
-                log.debug(key + ' has expired')
+        for key in copy:
+            if copy[key][1] + SENSOR_LIFETIME < request_time:
+                log.debug(str(key) + ' has expired')
                 self.web_requests.pop(key)
 
-        # Make the set of connection requests available in the other
-        # object/thread
-        log.debug('web_requests: ' + str(self.web_requests))
-        self.scheduler.set_web_requests(self.web_requests)
         if len(self.web_requests) > 0:
-            request_times = [req[0] for req in self.web_requests.values()]
+            request_times = [self.web_requests[key][1] for key in self.web_requests]
             self.scheduler.ignore_scheduler = max(request_times)
 
             # Generate another sensor check to ensure old sensor updates are
@@ -992,7 +1017,16 @@ class SchedulerReceiver(ApplicationWithConfig, ZMQRPC):
             t = threading.Timer(1, self._handle_request_sensor_update)
             t.start()
 
+        # Make the set of connection requests available in the other
+        # object/thread
+
+
+
+        self.scheduler.set_web_requests(self.web_requests)
         return self._encapsulate_reply(self._generate_pong())
+
+
+
 
     def control_scheduler(self):
         self.scheduler = Scheduler()
@@ -1047,7 +1081,7 @@ class SchedulerReceiver(ApplicationWithConfig, ZMQRPC):
 
     def update_scheduler(self, new_content_set):
         log.debug('Update scheduler')
-        etree = ElementTree.fromstring(new_content_set)
+        etree = ET.fromstring(new_content_set)
         self.scheduler.update_list(etree)
 
 if __name__ == "__main__":
