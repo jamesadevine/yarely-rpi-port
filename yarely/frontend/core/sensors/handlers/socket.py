@@ -114,14 +114,14 @@ class SocketHandler(Handler):
                 pass        # No data but connected, continue (for now -
                             # maybe we should drop the connection?)
 
-        print('Received data from {addr}: {data}'.format(
+        log.debug('Received data from {addr}: {data}'.format(
             addr='socket' if address is None else address,
             data=all_data
         ))
         etree = self._encapsulate_request(
             self._generate_sensor_update(all_data)
         )
-        print('etree: '+str(etree.items()))
+        log.debug('etree: '+str(etree.items()))
         self.zmq_request_queue.put_nowait(etree)
         connection.close()
         self._socket_reader_threads.pop(id(connection))

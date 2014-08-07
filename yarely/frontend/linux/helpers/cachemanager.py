@@ -209,7 +209,7 @@ class cache_manager(object):
         #store image of page in separate directory so that the scheduler doesn't try and read a bad resource...
         temp_path='/tmp/downloading'+download_path
         log.info('downloading to '+temp_path)
-        process=Popen(['xvfb-run','-e','/dev/stdout','-s -screen 0, '+str(self.width)+'x'+str(self.height)+'x24', 'cutycapt', '--url='+uri,'--delay=10000','--min-width='+str(self.width), '--min-height='+str(self.height),'--out='+temp_path])
+        process=Popen(['xvfb-run','-s -screen 0, '+str(self.width)+'x'+str(self.height)+'x24', 'cutycapt', '--url='+uri,'--delay=10000','--min-width='+str(self.width), '--min-height='+str(self.height),'--out='+temp_path])
         process.wait()
         log.info('Download complete - moving to actual cache: '+download_path)
         try:

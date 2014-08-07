@@ -23,8 +23,28 @@ class Renderers():
             '(\d{3,4}x\d{3,4}) @',
             str(check_output(['tvservice', '-s']).strip())
         ).group(1)
+
+        #cursor variable to keep track of on/off state
+        self.cursor=True
+
+        #switch cursor off
+        self.toggle_cursor()
+
+        #clear the terminal of any messages from the setup stage.
+        self.clear_terminal()
+
+
+    def clear_terminal(self):
+        #clear terminal
         os.system('cls' if os.name == 'nt' else 'clear')
-    
+
+    def toggle_cursor(self):
+        #a method which toggles the system cursor.
+        if not self.cursor:
+            os.system('setterm -cursor on')
+        else:
+            os.system('setterm -cursor off')
+
     def stop(self):
         # TODO: stop the renderers here somehow
         pass

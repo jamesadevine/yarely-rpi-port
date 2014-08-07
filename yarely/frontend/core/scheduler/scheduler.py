@@ -282,7 +282,7 @@ class Scheduler(threading.Thread, ZMQRPC):
 
         for content in _web_items:
             asset=self.determine_asset(content)
-            self.now_playing=asset
+            self.now_playing=content
             content_src_uri = self.cache_manager.prefetch_content_item(asset)
             if content_src_uri is None:
                 # Can't fetch this now, move it to the end and try
@@ -867,8 +867,9 @@ class Scheduler(threading.Thread, ZMQRPC):
 
     def set_web_requests(self, web_requests):
         if sorted(self.web_requests) != sorted(web_requests):
-            print('web_requests has changed')
+            log.debug('web_requests has changed')
             self.web_requests_updated = True
+            self.renderers.clear_terminal()
         self.web_requests = web_requests.copy()
         self.renderer_override()
 
@@ -1008,8 +1009,9 @@ class SchedulerReceiver(ApplicationWithConfig, ZMQRPC):
                 self.web_requests.pop(key)
 
         if len(self.web_requests) > 0:
-            request_times = [self.web_requests[key][1] for key in self.web_requests]
-            self.scheduler.ignore_scheduler = max(request_times)
+            for key in self.web_requests:
+                request_times = self.web_requests[key][1]
+                self.scheduler.ignore_scheduler = request_times+self.scheduler.get_duration_for(self.web_requests[key][0])
 
             # Generate another sensor check to ensure old sensor updates are
             # removed even when new ones aren't coming in - in this case
@@ -1049,6 +1051,8 @@ class SchedulerReceiver(ApplicationWithConfig, ZMQRPC):
         self.control_scheduler()
         
     def stop(self):
+        #turn cursor back on!
+        self.scheduler.renderers.toggle_cursor()
         """Application termination cleanup.
 
         """
