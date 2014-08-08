@@ -3,7 +3,7 @@
   <content-set name="Yarely Copy of Faraday" type="remote">
     <requires-file>
       <sources>
-        <uri refresh="2 minutes">http://mercury.lancs.ac.uk/api/schedulings/display/103/export</uri>
+        <uri refresh="2 minutes">http://e-content.lancs.ac.uk/yarely/per_display.php?display_id=ecampus-1000</uri>
       </sources>
     </requires-file>
   </content-set>

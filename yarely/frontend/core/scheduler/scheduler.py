@@ -291,10 +291,7 @@ class Scheduler(threading.Thread, ZMQRPC):
 
                 continue
 
-            while len(self.executing_renderers):
-                    renderer = self.executing_renderers.pop()
-                    log.debug('terminating ' + repr(renderer.pid))
-                    renderer.terminate()
+
 
             asset.set_uri(content_src_uri)
             # Start buffering content
@@ -869,7 +866,6 @@ class Scheduler(threading.Thread, ZMQRPC):
         if sorted(self.web_requests) != sorted(web_requests):
             log.debug('web_requests has changed')
             self.web_requests_updated = True
-            self.renderers.clear_terminal()
         self.web_requests = web_requests.copy()
         self.renderer_override()
 
