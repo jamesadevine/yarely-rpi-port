@@ -46,15 +46,19 @@ class ImageAsset(BaseAsset):
         # now that we just show a black background,
         # it makes no sense to waste time by fading in
         # shutter.fade_in()
-        #self.renderers.shutter.fade_in()
+
+        #self.renderers.clear_terminal()
 
         if self.image:
             self.image.start()
+        self.renderers.shutter.fade_in()
 
     def stop(self):
-        #self.renderers.shutter.fade_to_black()
+        self.renderers.shutter.fade_to_black()
         if self.image:
             self.image.wait()
+        #self.renderers.clear_terminal()
+
 
     def fade_colour(self):
         return 'black'
@@ -74,15 +78,17 @@ class BrowserAsset(BaseAsset):
         # now that we just show a black background,
         # it makes no sense to waste time by fading in
         # shutter.fade_in()
-        #self.renderers.shutter.fade_in()
-
+        #
         if self.browser:
             self.browser.start()
+        self.renderers.shutter.fade_in()
 
     def stop(self):
-        #self.renderers.shutter.fade_to_black()
+        self.renderers.shutter.fade_to_black()
+
         if self.browser:
             self.browser.wait()
+        #self.renderers.clear_terminal()
 
     def fade_colour(self):
         return 'black'
@@ -129,15 +135,19 @@ class PlayerAsset(BaseAsset):
     def prepare(self):
         self.player = Player(self.uri)
 
+    def play(self):
         # now that we just show a black background,
         # it makes no sense to waste time by fading in
-        #self.shutter.fade_in()
+        #self.renderers.clear_terminal()
         if self.player:
             self.player.start()
 
     def stop(self):
+        self.renderers.shutter.fade_to_black()
+
         if self.player:
             self.player.wait()
+        self.renderers.clear_terminal()
 
     def fade_colour(self):
         return 'black'

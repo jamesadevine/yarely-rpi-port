@@ -14,12 +14,14 @@ from datetime import datetime
 import os
 import time
 from subprocess import check_output
+from PIL import Image
 
 log = logging.getLogger(__name__)
 
 xvfb_run_bin='/usr/bin/xvfb-run'
 URL_REFRESH_TIME=1800 #30 minutes
 FILE_DELETION_TIME=1800 #30 minutes
+
 
 class cache_manager(object):
     def __init__(self,cache_path):
@@ -144,13 +146,22 @@ class cache_manager(object):
                     self.add_to_active_downloads(content_src_uri)
                     #if it's a page we use popen to save a screencap of that image
                     self.download_page(content_src_uri,cache_path,self.active_downloads_lock,)
-                elif not self.is_in_active_downloads(content_src_uri) and self.running_process.value<5:
+                elif isinstance(asset,ImageAsset) and not self.is_in_active_downloads(content_src_uri) and self.running_process.value<5:
                     self.increment_running_process()
-                    log.info('downloading image or video asset')
+                    log.info('downloading image')
                     self.add_to_active_downloads(content_src_uri)
 
                     #else use a traditional write buffer to download the resource.
-                    process=Process(target=self.download_resource,args=(content_src_uri,cache_path,self.active_downloads_lock,))
+                    process=Process(target=self.download_image,args=(content_src_uri,cache_path,self.active_downloads_lock,))
+                    process.daemon=True
+                    process.start()
+                elif not self.is_in_active_downloads(content_src_uri) and self.running_process.value<5:
+                    self.increment_running_process()
+                    log.info('downloading video')
+                    self.add_to_active_downloads(content_src_uri)
+
+                    #else use a traditional write buffer to download the resource.
+                    process=Process(target=self.download_video,args=(content_src_uri,cache_path,self.active_downloads_lock,))
                     process.daemon=True
                     process.start()
         return None
@@ -182,7 +193,7 @@ class cache_manager(object):
         self.active_downloads_lock.release()
         return False
 
-    def download_resource(self, uri,download_path,active_downloads_lock):
+    def download_video(self, uri,download_path,active_downloads_lock):
         #store resource in separate directory so that the scheduler doesn't try and read a bad resource...
         temp_path='/tmp/downloading'+download_path
         log.info('downloading to '+temp_path)
@@ -201,6 +212,39 @@ class cache_manager(object):
             log.info('decrementing from process')
             self.decrement_running_process()
         except (URLError, IOError) as e:
+            log.info('Failed to fetch resource from url: '+str(e))
+            log.info('decrementing from process')
+            self.decrement_running_process()
+
+
+    def download_image(self, uri,download_path,active_downloads_lock):
+        #store resource in separate directory so that the scheduler doesn't try and read a bad resource...
+        temp_path='/tmp/downloading'+download_path
+        log.info('downloading to '+temp_path)
+        log.info('downloading from: '+uri)
+        try:
+            filehandle = urlopen(uri)
+            open(temp_path, 'wb').write(filehandle.read())
+            #print('Download complete - moving to actual cache: '+download_path)
+            try:
+                img = Image.open(temp_path)
+                if img.size[0]!= int(self.width) and img.size[1]!= int(self.height):
+                    print('Image opened... resizing to: '+str(int(self.width))+str(int(self.height)))
+                    img = img.resize((int(self.width),int(self.height)), Image.ANTIALIAS)
+                    print('Image resized... saving to: '+temp_path.split('.')[-1])
+                    img.save(temp_path)
+                del img
+                print('moving to: '+download_path)
+                os.rename(temp_path,download_path)
+            except:
+                print('unable to save - moving on.')
+            active_downloads_lock.acquire()
+            del self.active_downloads[uri]
+            active_downloads_lock.release()
+            print('decrementing from process')
+            self.decrement_running_process()
+        except (URLError, IOError) as e:
+            raise
             log.info('Failed to fetch resource from url: '+str(e))
             log.info('decrementing from process')
             self.decrement_running_process()

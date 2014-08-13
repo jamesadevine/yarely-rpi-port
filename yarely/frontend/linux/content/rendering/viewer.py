@@ -12,6 +12,7 @@ import os
 from subprocess import check_output
 import re
 from threading import Thread
+from yarely.frontend.linux.shutter.shutter import Shutter
 
 # Initiate logging
 log = logging.getLogger(__name__)
@@ -23,6 +24,8 @@ class Renderers():
             '(\d{3,4}x\d{3,4}) @',
             str(check_output(['tvservice', '-s']).strip())
         ).group(1)
+
+        self.shutter=Shutter()
 
         #cursor variable to keep track of on/off state
         self.cursor=True
@@ -36,6 +39,8 @@ class Renderers():
 
     def clear_terminal(self):
         #clear terminal
+        #print('CLEAR')
+        #self.cursor
         os.system('cls' if os.name == 'nt' else 'clear')
 
     def toggle_cursor(self):

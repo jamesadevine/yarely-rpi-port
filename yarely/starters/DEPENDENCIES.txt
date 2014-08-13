@@ -1,10 +1,14 @@
 sudo apt-get install python3-setuptools
 sudo apt-get install python3-zmq
-sudo apt-get install netsurf-fb
 sudo apt-get install fim
 sudo apt-get install omxplayer
 sudo apt-get install python3-pip
-sudo pip-[PYTHON VERSION NUMBER] install pexpect
+sudo pip-3.2 install pexpect
+sudo apt-get install libjpeg-dev
+sudo apt-get install libpng-dev
+sudo pip-3.2 install -I pillow
+
+sudo apt-get install xvfb
 
 fimrc is used for configuring fim. It needs to be renamed to '.fimrc' and placed at the calling users root
 Must run pkill -hup python on each new run...

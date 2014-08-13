@@ -39,7 +39,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string.h>
 #include <assert.h>
 #include <unistd.h>
+#include <linux/fb.h>
+#include <fcntl.h>
 #include <sys/time.h>
+#include <string.h>
 
 #include "bcm_host.h"
 
@@ -111,6 +114,7 @@ void hard_in(RECT_VARS_T *vars);
 void fade_out(RECT_VARS_T *vars, int color);
 void fade_in(RECT_VARS_T *vars);
 void disconnect(RECT_VARS_T *vars);
+void waitForChange();
 
 static struct timespec stepDelay;
 
@@ -312,6 +316,29 @@ int create_overlay(RECT_VARS_T *vars, int color)
     return 1; // everything went fine
 }
 
+void waitForChange(){
+    char data[1001];
+    char other[1001];
+
+    int fbfd;
+    if((fbfd = open("/dev/fb0",O_RDONLY,O_NONBLOCK))<0)
+        return;
+
+    int noOfBytesData=read(fbfd, data, 1000);
+    read(fbfd, other, noOfBytesData);
+    //fprintf(stderr,"%s  \r\n   %s",data,other);
+
+    while(memcmp(data,other,noOfBytesData)==0){
+        //if((fbfd = open("/dev/fb0",O_RDONLY,O_NONBLOCK))<0)
+        //    return;
+        //fprintf(stderr,"The Same...");
+        read(fbfd, other, noOfBytesData);
+        //close(fbfd);
+        //do nothing
+        sleep(0);
+    }
+    sleep(1);
+}
 
 void fade(RECT_VARS_T *vars, int min, int max, int step, struct timespec* delay)
 {
@@ -389,7 +416,14 @@ void fade_in(RECT_VARS_T *vars)
 	fprintf(stderr, "%s: not connected, not fading in\n", program);
 	return;
     }
-    fade(vars, 0, 255, -5, &stepDelay);
+    //fprintf(stderr,"FADING IN!!!");
+    waitForChange();
+    struct timespec fadeInDelay;
+    long delay = 1000*1000*1000;
+    fadeInDelay.tv_sec = 0;
+    fadeInDelay.tv_nsec = delay / 51;;
+
+    fade(vars, 0, 255, -5, &fadeInDelay);
     disconnect(vars);
 }
 

@@ -263,11 +263,15 @@ class Scheduler(threading.Thread, ZMQRPC):
            Extracts xml to get content_item schedule and send schedule
            list to renderer.
         """
-        if self.etree is None or len(self.web_requests):
+
+        if self.etree is None or len(self.web_requests)>0:
 
             log.debug('No etree or web requests')
-            ignore_until = self.ignore_scheduler + SENSOR_LIFETIME
-            if ignore_until > time.time() and len(self.web_requests):
+            '''
+            print('OVERRIDE RENDER LOOP')
+            print('INSIDE: '+str(self.ignore_scheduler)+' '+str(self.web_requests))
+            '''
+            if self.ignore_scheduler > time.time() and len(self.web_requests)>0:
                 self.renderer_override()
         else:
             log.debug('Got etree')
@@ -331,6 +335,8 @@ class Scheduler(threading.Thread, ZMQRPC):
                     log.debug(
                         "Time remaining {}".format(end_time - now)
                     )
+                asset.stop()
+                del self.web_requests[content.parser.get_files()[0]]
 
 
     def get_ratio_for(self, playlist):
@@ -641,12 +647,11 @@ class Scheduler(threading.Thread, ZMQRPC):
 
                             asset.play()
                             
-                            while (
-                                now < end_time and (
-                                    self.ignore_scheduler + SENSOR_LIFETIME
-                                ) <= now and
-                                not self.scheduler_event_thread.is_set()
-                            ):
+                            while (now < end_time and (self.ignore_scheduler + SENSOR_LIFETIME) <= now and not self.scheduler_event_thread.is_set()):
+                                if(len(self.web_requests)>0):
+                                    self.now_playing=None
+                                    asset.stop()
+                                    return
                                 # Sleep for up to 1 sec
                                 try:
                                     time.sleep(min(1, end_time - time.time()))
@@ -671,6 +676,8 @@ class Scheduler(threading.Thread, ZMQRPC):
                                 ) <= time.time() and
                                 not self.scheduler_event_thread.is_set()
                             ):
+                                if(len(self.web_requests)>0):
+                                    break
                                 # Ensure display stays on for 2x duration
                                 # of content
                                 xml = DISPLAY_ON_XML.format(
@@ -867,7 +874,7 @@ class Scheduler(threading.Thread, ZMQRPC):
             log.debug('web_requests has changed')
             self.web_requests_updated = True
         self.web_requests = web_requests.copy()
-        self.renderer_override()
+
 
 
 
@@ -1005,6 +1012,7 @@ class SchedulerReceiver(ApplicationWithConfig, ZMQRPC):
                 self.web_requests.pop(key)
 
         if len(self.web_requests) > 0:
+
             for key in self.web_requests:
                 request_times = self.web_requests[key][1]
                 self.scheduler.ignore_scheduler = request_times+self.scheduler.get_duration_for(self.web_requests[key][0])
