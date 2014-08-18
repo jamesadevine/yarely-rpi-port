@@ -59,62 +59,18 @@ class cache_manager(object):
         file_deletion_process.daemon=True
         file_deletion_process.start()
 
-    def fetch_interrupt_item(self,asset):
-        content_src_uri=asset.uri
-        if not asset.should_precache():
-            # Don't precache, use the URI as it is
-            return content_src_uri
-        if isinstance(asset,BrowserAsset):
-            file_uri=content_src_uri.split('.')
-            file_uri=str(file_uri[-3]+file_uri[-2]+file_uri[-1]+'.url.png')
-            file_uri=file_uri.replace('/', '')
-        else:
-            file_uri=content_src_uri.split('.')
-            file_uri=str(file_uri[-3]+file_uri[-2]+'.'+file_uri[-1])
-            file_uri=file_uri.replace('/', '')
-        # Precache content
-        # Work out path to the content in the cache
-        cache_path = os.path.join(
-            self.cache_path,
-            file_uri
-        )
-        #log.info ('FILE URI:'+file_uri)
-        #log.info ('CACHE PATH:'+cache_path)
-        if os.path.exists(cache_path):
-            # Content already cached
-            return cache_path
-        else:
-            #download file in background without blocking main thread
-            if isinstance(asset,BrowserAsset) and not self.is_in_active_downloads(content_src_uri) and self.running_process.value<5:
-                self.increment_running_process()
-                log.info('downloading browser asset')
-                self.add_to_active_downloads(content_src_uri)
-                #if it's a page we use popen to save a screencap of that image
-                self.download_page(content_src_uri,cache_path,self.active_downloads_lock,)
-            elif not self.is_in_active_downloads(content_src_uri) and self.running_process.value<5:
-                self.increment_running_process()
-                log.info('downloading image or video asset')
-                self.add_to_active_downloads(content_src_uri)
-
-                #else use a traditional write buffer to download the resource.
-                process=Process(target=self.download_resource,args=(content_src_uri,cache_path,self.active_downloads_lock,))
-                process.daemon=True
-                process.start()
-            else:
-                return None
-
     def prefetch_content_item(self, asset):
         content_file = asset.asset.get_files()[0]
         sources = content_file.get_sources()
         if not len(sources):
-            print(
+            log.debug(
                 'Could not get source URI at index 0'
             )
             return None
 
         for src in sources:
             content_src_uri = src.get_uri()
-
+            log.info('prefetching content item: '+content_src_uri)
             # Look to see if this file should be precached
             if not asset.should_precache():
                 # Don't precache, use the URI as it is
@@ -133,8 +89,10 @@ class cache_manager(object):
                 self.cache_path,
                 file_uri
             )
-            #log.info ('FILE URI:'+file_uri)
-            #log.info ('CACHE PATH:'+cache_path)
+            #
+            log.info ('ASSET: '+str(asset))
+            log.info ('FILE URI:'+file_uri)
+            log.info ('CACHE PATH:'+cache_path)
             if os.path.exists(cache_path):
                 # Content already cached
                 return cache_path
@@ -155,7 +113,7 @@ class cache_manager(object):
                     process=Process(target=self.download_image,args=(content_src_uri,cache_path,self.active_downloads_lock,))
                     process.daemon=True
                     process.start()
-                elif not self.is_in_active_downloads(content_src_uri) and self.running_process.value<5:
+                elif isinstance(asset,PlayerAsset) and not self.is_in_active_downloads(content_src_uri) and self.running_process.value<5:
                     self.increment_running_process()
                     log.info('downloading video')
                     self.add_to_active_downloads(content_src_uri)
@@ -205,7 +163,7 @@ class cache_manager(object):
             try:
                 os.rename(temp_path,download_path)
             except:
-                print('rename failed - try again later')
+                log.info('rename failed - try again later')
             active_downloads_lock.acquire()
             del self.active_downloads[uri]
             active_downloads_lock.release()
@@ -225,26 +183,25 @@ class cache_manager(object):
         try:
             filehandle = urlopen(uri)
             open(temp_path, 'wb').write(filehandle.read())
-            #print('Download complete - moving to actual cache: '+download_path)
+            log.info('Download complete')
             try:
-                img = Image.open(temp_path)
+                img = Image.open(temp_path).convert('RGB')
                 if img.size[0]!= int(self.width) and img.size[1]!= int(self.height):
-                    print('Image opened... resizing to: '+str(int(self.width))+str(int(self.height)))
+                    log.info('Image opened... resizing to: '+str(int(self.width))+str(int(self.height)))
                     img = img.resize((int(self.width),int(self.height)), Image.ANTIALIAS)
-                    print('Image resized... saving to: '+temp_path.split('.')[-1])
+                    log.info('Image resized... saving to: '+temp_path.split('.')[-1])
                     img.save(temp_path)
                 del img
-                print('moving to: '+download_path)
+                log.info('moving to: '+download_path)
                 os.rename(temp_path,download_path)
             except:
-                print('unable to save - moving on.')
+                log.info('unable to save - moving on.')
             active_downloads_lock.acquire()
             del self.active_downloads[uri]
             active_downloads_lock.release()
-            print('decrementing from process')
+            log.info('decrementing from process')
             self.decrement_running_process()
         except (URLError, IOError) as e:
-            raise
             log.info('Failed to fetch resource from url: '+str(e))
             log.info('decrementing from process')
             self.decrement_running_process()
@@ -259,7 +216,7 @@ class cache_manager(object):
         try:
             os.rename(temp_path,download_path)
         except:
-            print('rename failed - try again later')
+            log.info('rename failed - try again later')
 
         active_downloads_lock.acquire()
         del self.active_downloads[uri]
@@ -267,7 +224,7 @@ class cache_manager(object):
         log.info('decrementing from process')
         self.decrement_running_process()
 
-    #this function runs in the background and removes 20 items whenever it sees that the diskspace usage >20%
+    #this function runs in the background and removes 20 items whenever it sees that the diskspace usage >80%
     def remove_old_items(self):
         while True:
             statvfs = os.statvfs(self.cache_path)

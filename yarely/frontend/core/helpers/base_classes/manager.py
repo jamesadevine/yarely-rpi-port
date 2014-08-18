@@ -178,7 +178,7 @@ class Manager(ApplicationWithConfig, ZMQRPC):
             for sock in socks_with_data:
                 if sock is zmq_termination_reply_socket:
                     term = True
-                else:
+                elif not term:  # If we're not in the process of terminating...
                     msg = sock.recv().decode()
                     reply = self._handle_zmq_msg(msg)
                     if reply is None:

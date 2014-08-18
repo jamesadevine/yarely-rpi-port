@@ -404,7 +404,7 @@ void fade_out(RECT_VARS_T *vars, int color)
 void hard_in(RECT_VARS_T *vars)
 {
     if (!vars->connected) {
-	fprintf(stderr, "%s: not connected, not hard cut in\n", program);
+	//fprintf(stderr, "%s: not connected, not hard cut in\n", program);
 	return;
     }
     disconnect(vars);
@@ -421,7 +421,7 @@ void fade_in(RECT_VARS_T *vars)
     struct timespec fadeInDelay;
     long delay = 1000*1000*1000;
     fadeInDelay.tv_sec = 0;
-    fadeInDelay.tv_nsec = delay / 51;;
+    fadeInDelay.tv_nsec = delay / 51;
 
     fade(vars, 0, 255, -5, &fadeInDelay);
     disconnect(vars);

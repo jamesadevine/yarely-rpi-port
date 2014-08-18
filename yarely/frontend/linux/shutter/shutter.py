@@ -17,7 +17,7 @@ class Shutter(object):
         self.shutter = None
         shutter_args = [shutter_bin]
         self.shutter = subprocess.Popen(
-            shutter_args, bufsize=1,
+            shutter_args, bufsize=-1,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE
         )
 
@@ -33,6 +33,7 @@ class Shutter(object):
             self.fade_to_color(color)
 
     def fade_to_black(self):
+        #print('fade out')
         self.issue_command('fade-to-black\n', 'fade_to_black')
 
     def fade_to_white(self):
@@ -42,6 +43,7 @@ class Shutter(object):
         self.issue_command('fade-to-color %s\n' % color, 'fade_to_color')
 
     def fade_in(self):
+        #print('fade in')
         self.issue_command('fade-in\n', 'fade_in')
 
     def hard_to(self, color):
@@ -68,8 +70,18 @@ class Shutter(object):
         if not self.shutter:
                 return
         logging.debug('%s start' % function_name)
-        self.shutter.stdin.write(bytes(command, 'ascii'))
-        self.shutter.stdin.flush()
-        l = self.shutter.stdout.readline().decode('UTF-8')
+        try:
+            self.shutter.stdin.write(bytes(command, 'ascii'))
+            self.shutter.stdin.flush()
+            l = self.shutter.stdout.readline().decode('UTF-8')
+        except IOError:
+            shutter_args = [shutter_bin]
+            self.shutter=None
+            self.shutter = subprocess.Popen(
+                shutter_args, bufsize=-1,
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE
+            )
+            logging.debug('IO ERROR: Restarting the shutter...')
+            return
         # logging.debug('%s read "%s"' % (function_name, l))
         logging.debug('%s read end' % function_name)
